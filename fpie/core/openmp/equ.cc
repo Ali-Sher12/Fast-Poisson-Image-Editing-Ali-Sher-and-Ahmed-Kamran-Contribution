@@ -4,6 +4,10 @@
 
 #include "solver.h"
 
+// How often (in iterations) to re-evaluate the residual when eps > 0.
+// Smaller = more responsive but slightly more overhead.
+static const int EPS_CHECK_INTERVAL = 100;
+
 OpenMPEquSolver::OpenMPEquSolver(int n_cpu)
     : maskbuf(NULL), imgbuf(NULL), tmp(NULL), n_mid(0), EquSolver() {
   omp_set_num_threads(n_cpu);
@@ -104,9 +108,19 @@ void OpenMPEquSolver::calc_error() {
   }
 }
 
+// Returns true if the mean absolute residual per pixel per channel has dropped
+// below eps, meaning we have converged and can stop early.
+inline bool OpenMPEquSolver::has_converged(float eps) {
+  if (eps <= 0.0f || N <= 1) return false;
+  calc_error();
+  float mean_residual = (err[0] + err[1] + err[2]) / (3.0f * (N - 1));
+  return mean_residual < eps;
+}
+
 std::tuple<py::array_t<unsigned char>, py::array_t<float>>
-OpenMPEquSolver::step(int iteration) {
+OpenMPEquSolver::step(int iteration, float eps) {
   for (int i = 0; i < iteration; ++i) {
+    // --- Jacobi update (two-fold red/black style from partition()) ---
 #pragma omp parallel for schedule(static)
     for (int j = 1; j < n_mid; ++j) {
       update_equation(j);
@@ -115,8 +129,21 @@ OpenMPEquSolver::step(int iteration) {
     for (int j = n_mid; j < N; ++j) {
       update_equation(j);
     }
+
+    // --- Adaptive convergence check ---
+    // Only evaluate residual every EPS_CHECK_INTERVAL iterations to keep
+    // the overhead small.  The check itself is parallelised inside
+    // calc_error() so it costs roughly one extra Jacobi pass.
+    if (eps > 0.0f && (i + 1) % EPS_CHECK_INTERVAL == 0) {
+      if (has_converged(eps)) {
+        break;
+      }
+    }
   }
+
+  // Final error snapshot (needed even if we broke out early).
   calc_error();
+
 #pragma omp parallel for schedule(static)
   for (int i = 0; i < N * 3; ++i) {
     imgbuf[i] = X[i] < 0 ? 0 : X[i] > 255 ? 255 : X[i];

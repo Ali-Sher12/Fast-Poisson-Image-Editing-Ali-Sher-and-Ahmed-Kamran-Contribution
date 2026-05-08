@@ -35,7 +35,6 @@ class EquSolver {
     A = new int[N * 4];
     B = new float[N * 3];
     X = new float[N * 3];
-    // copy from numpy
     auto a_arr = a.unchecked<2>();
     auto b_arr = b.unchecked<2>();
     auto x_arr = x.unchecked<2>();
@@ -68,8 +67,11 @@ class EquSolver {
     throw std::runtime_error("post_reset not implemented");
   }
 
+  // eps: adaptive convergence threshold (0 = disabled, use fixed iterations).
+  // When eps > 0 the solver stops early once
+  //   (err[0] + err[1] + err[2]) / (3 * N) < eps.
   virtual std::tuple<py::array_t<unsigned char>, py::array_t<float>> step(
-      int iteration) {
+      int iteration, float eps = 0.0f) {
     throw std::runtime_error("step not implemented");
   }
 };
@@ -105,7 +107,6 @@ class GridSolver {
       delete[] tgt;
       delete[] grad;
     }
-    // copy from numpy
     auto mask_arr = m.unchecked<2>();
     auto tgt_arr = t.unchecked<3>();
     auto grad_arr = g.unchecked<3>();
@@ -145,8 +146,9 @@ class GridSolver {
     throw std::runtime_error("post_reset not implemented");
   }
 
+  // eps: adaptive convergence threshold (0 = disabled).
   virtual std::tuple<py::array_t<unsigned char>, py::array_t<float>> step(
-      int iteration) {
+      int iteration, float eps = 0.0f) {
     throw std::runtime_error("step not implemented");
   }
 };

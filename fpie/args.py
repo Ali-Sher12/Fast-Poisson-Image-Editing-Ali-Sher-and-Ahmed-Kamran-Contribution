@@ -103,8 +103,23 @@ def get_args(gen_type: str) -> argparse.Namespace:
     parser.add_argument(
         "-n",
         type=int,
-        help="how many iteration would you perfer, the more the better",
+        help="how many iteration would you prefer, the more the better",
         default=5000,
+    )
+    # --- ADDED: adaptive convergence threshold ---
+    # When eps > 0, iterations stop early once mean absolute residual
+    # per pixel per channel drops below this value.
+    # Set to 0 (default) to keep the original fixed-iteration behaviour.
+    parser.add_argument(
+        "-e",
+        "--error-threshold",
+        type=float,
+        default=0.0,
+        help=(
+            "adaptive convergence threshold (default 0 = disabled). "
+            "Stop early when mean residual per pixel per channel < eps. "
+            "Typical useful value: 1e-2 to 1e-3."
+        ),
     )
     if gen_type == "cli":
         parser.add_argument(
