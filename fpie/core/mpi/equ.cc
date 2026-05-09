@@ -53,7 +53,8 @@ void MPIEquSolver::post_reset() {
   }
   tmp = new float[N * 3];
   imgbuf = new unsigned char[N * 3];
-  // offset
+  // EquSolver: N is already the number of mask pixels (not image rows), so
+  // dividing equations equally IS mask-aware load balancing.
   offset[0] = 0;
   int additional = N % n_proc;
   for (int i = 0; i < n_proc; ++i) {
@@ -107,14 +108,14 @@ void MPIEquSolver::calc_error() {
     int id2 = A[off4 + 2] * 3;
     int id3 = A[off4 + 3] * 3;
     tmp[off3 + 0] = std::abs(
-        4 * X[off3 + 0] - (X[id0 + 0] + X[id1 + 0] + X[id2 + 0] + X[id3 + 0]) -
-        B[off3 + 0]);
+        4 * X[off3 + 0] -
+        (X[id0 + 0] + X[id1 + 0] + X[id2 + 0] + X[id3 + 0]) - B[off3 + 0]);
     tmp[off3 + 1] = std::abs(
-        4 * X[off3 + 1] - (X[id0 + 1] + X[id1 + 1] + X[id2 + 1] + X[id3 + 1]) -
-        B[off3 + 1]);
+        4 * X[off3 + 1] -
+        (X[id0 + 1] + X[id1 + 1] + X[id2 + 1] + X[id3 + 1]) - B[off3 + 1]);
     tmp[off3 + 2] = std::abs(
-        4 * X[off3 + 2] - (X[id0 + 2] + X[id1 + 2] + X[id2 + 2] + X[id3 + 2]) -
-        B[off3 + 2]);
+        4 * X[off3 + 2] -
+        (X[id0 + 2] + X[id1 + 2] + X[id2 + 2] + X[id3 + 2]) - B[off3 + 2]);
   }
   memset(err, 0, sizeof(err));
   for (int i = 1; i < N; ++i) {
@@ -126,27 +127,50 @@ void MPIEquSolver::calc_error() {
 }
 
 std::tuple<py::array_t<unsigned char>, py::array_t<float>> MPIEquSolver::step(
-    int iteration) {
-  for (int i = 0; i < iteration; i += min_interval) {
+    int iteration, float eps) {
+  // converged flag is shared across all ranks via MPI_Bcast so every process
+  // stops at the same sync boundary.
+  int converged = 0;
+
+  for (int i = 0; i < iteration && !converged; i += min_interval) {
+    // --- Run min_interval Jacobi steps on this rank's slice ---
     for (int j = 0; j < min_interval; ++j) {
       for (int k = offset[proc_id]; k < offset[proc_id + 1]; ++k) {
         update_equation(k);
       }
     }
+
+    // --- Gather updated slices back to rank 0 ---
     if (proc_id == 0) {
       for (int j = 1; j < n_proc; ++j) {
-        MPI_Recv(&X[offset[j] * 3], (offset[j + 1] - offset[j]) * 3, MPI_FLOAT,
-                 j, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&X[offset[j] * 3], (offset[j + 1] - offset[j]) * 3,
+                 MPI_FLOAT, j, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
       }
     } else {
       MPI_Send(&X[offset[proc_id] * 3],
                (offset[proc_id + 1] - offset[proc_id]) * 3, MPI_FLOAT, 0, 0,
                MPI_COMM_WORLD);
     }
+    // Broadcast the fully-merged X back to all ranks.
     MPI_Bcast(X, N * 3, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+    // --- Adaptive convergence check (rank 0 decides, broadcasts result) ---
+    // We piggyback on the natural sync boundary (every min_interval steps) to
+    // keep the extra communication cost at zero.
+    if (eps > 0.0f) {
+      if (proc_id == 0) {
+        calc_error();
+        float mean_residual = (err[0] + err[1] + err[2]) / (3.0f * (N - 1));
+        converged = (mean_residual < eps) ? 1 : 0;
+      }
+      // All ranks must agree on whether to stop.
+      MPI_Bcast(&converged, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    }
   }
+
   if (proc_id == 0) {
-    calc_error();
+    // Compute final error if we haven't just done so.
+    if (eps <= 0.0f) calc_error();
     for (int i = 0; i < N * 3; ++i) {
       imgbuf[i] = X[i] < 0 ? 0 : X[i] > 255 ? 255 : X[i];
     }

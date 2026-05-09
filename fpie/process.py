@@ -12,7 +12,6 @@ DEFAULT_CPU_CAP = 8
 
 
 def _default_cpu_count() -> int:
-    """Pick a conservative default for CPU-backed solvers."""
     candidates: list[int] = []
     cpu_count = os.cpu_count()
     if cpu_count is not None:
@@ -33,7 +32,6 @@ MPI: Any | None = None
 
 try:
     from fpie import numba_solver
-
     ALL_BACKEND += ["numba"]
     DEFAULT_BACKEND = "numba"
 except ImportError:
@@ -41,7 +39,6 @@ except ImportError:
 
 try:
     from fpie import taichi_solver
-
     ALL_BACKEND += ["taichi-cpu", "taichi-gpu"]
     DEFAULT_BACKEND = "taichi-cpu"
 except ImportError:
@@ -49,7 +46,6 @@ except ImportError:
 
 try:
     from fpie import core_gcc  # type: ignore
-
     DEFAULT_BACKEND = "gcc"
     ALL_BACKEND.append("gcc")
 except ImportError:
@@ -57,7 +53,6 @@ except ImportError:
 
 try:
     from fpie import core_openmp  # type: ignore
-
     DEFAULT_BACKEND = "openmp"
     ALL_BACKEND.append("openmp")
 except ImportError:
@@ -65,9 +60,7 @@ except ImportError:
 
 try:
     from mpi4py import MPI as _MPI
-
     from fpie import core_mpi  # type: ignore
-
     MPI = _MPI
     ALL_BACKEND.append("mpi")
 except ImportError:
@@ -76,32 +69,36 @@ except ImportError:
 
 try:
     from fpie import core_cuda  # type: ignore
-
     DEFAULT_BACKEND = "cuda"
     ALL_BACKEND.append("cuda")
 except ImportError:
     core_cuda = None
 
+# --- Hybrid: MPI + OpenMP (requires both to be available) ---
+try:
+    from mpi4py import MPI as _MPI2
+    from fpie import core_hybrid  # type: ignore
+    if MPI is None:
+        MPI = _MPI2
+    ALL_BACKEND.append("hybrid")
+except ImportError:
+    core_hybrid = None
+
 
 class BaseProcessor(ABC):
-    """Define the common processor interface."""
-
-    def __init__(
-        self, gradient: str, rank: int, backend: str, core: Any | None
-    ):
-        """Store common processor configuration."""
+    def __init__(self, gradient: str, rank: int, backend: str, core: Any | None):
         if core is None:
             error_msg = {
-                "numpy": "Please run `pip install numpy`.",
-                "numba": "Please run `pip install numba`.",
-                "gcc": "Please install cmake and gcc in your operating system.",
-                "openmp": "Please make sure your gcc is compatible with `-fopenmp` option.",
-                "mpi": "Please install MPI and run `pip install mpi4py`.",
-                "cuda": "Please make sure nvcc and cuda-related libraries are available.",
-                "taichi": "Please run `pip install taichi`.",
+                "numpy":   "Please run `pip install numpy`.",
+                "numba":   "Please run `pip install numba`.",
+                "gcc":     "Please install cmake and gcc.",
+                "openmp":  "Please make sure your gcc supports `-fopenmp`.",
+                "mpi":     "Please install MPI and run `pip install mpi4py`.",
+                "cuda":    "Please make sure nvcc and cuda libraries are available.",
+                "taichi":  "Please run `pip install taichi`.",
+                "hybrid":  "Please install MPI + OpenMP and rebuild with cmake.",
             }
-            print(error_msg[backend.split("-")[0]])
-
+            print(error_msg.get(backend.split("-")[0], f"Backend {backend} unavailable."))
             raise AssertionError(f"Invalid backend {backend}.")
 
         self.gradient = gradient
@@ -111,41 +108,27 @@ class BaseProcessor(ABC):
         self.root = rank == 0
 
     def mixgrad(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        """Combine source and target gradients according to the configured mode."""
         if self.gradient == "src":
             return a
         if self.gradient == "avg":
             return (a + b) / 2
-        # mix gradient, see Equ. 12 in PIE paper
         mask = np.abs(a) < np.abs(b)
         a[mask] = b[mask]
         return a
 
     @abstractmethod
-    def reset(
-        self,
-        src: np.ndarray,
-        mask: np.ndarray,
-        tgt: np.ndarray,
-        mask_on_src: tuple[int, int],
-        mask_on_tgt: tuple[int, int],
-    ) -> int:
-        """Initialize the processor state for a new blend."""
+    def reset(self, src, mask, tgt, mask_on_src, mask_on_tgt) -> int:
         pass
 
     def sync(self) -> None:
-        """Synchronize backend state across workers."""
         self.core.sync()
 
     @abstractmethod
-    def step(self, iteration: int) -> tuple[np.ndarray, np.ndarray] | None:
-        """Run iterations and return the current image and error."""
+    def step(self, iteration: int, eps: float = 0.0):
         pass
 
 
 class EquProcessor(BaseProcessor):
-    """PIE Jacobi equation processor."""
-
     def __init__(
         self,
         gradient: str = "max",
@@ -154,7 +137,6 @@ class EquProcessor(BaseProcessor):
         min_interval: int = 100,
         block_size: int = 1024,
     ):
-        """Create an equation-based processor for the selected backend."""
         core: Any | None = None
         rank = 0
 
@@ -172,49 +154,30 @@ class EquProcessor(BaseProcessor):
             rank = MPI.COMM_WORLD.Get_rank()
         elif backend == "cuda" and core_cuda is not None:
             core = core_cuda.EquSolver(block_size)
+        elif backend == "hybrid" and core_hybrid is not None:
+            assert MPI is not None
+            core = core_hybrid.EquSolver(n_cpu, min_interval)
+            rank = MPI.COMM_WORLD.Get_rank()
         elif backend.startswith("taichi") and taichi_solver is not None:
             core = taichi_solver.EquSolver(backend, n_cpu, block_size)
 
         super().__init__(gradient, rank, backend, core)
 
-    def mask2index(
-        self, mask: np.ndarray
-    ) -> tuple[np.ndarray, int, np.ndarray, np.ndarray]:
-        """Build the compact index mapping for the active mask."""
+    def mask2index(self, mask):
         x, y = np.nonzero(mask)
         max_id = x.shape[0] + 1
         index = np.zeros((max_id, 3))
         ids = self.core.partition(mask)
-        ids[mask == 0] = 0  # reserve id=0 for constant
+        ids[mask == 0] = 0
         index = ids[x, y].argsort()
         return ids, max_id, x[index], y[index]
 
-    def reset(
-        self,
-        src: np.ndarray,
-        mask: np.ndarray,
-        tgt: np.ndarray,
-        mask_on_src: tuple[int, int],
-        mask_on_tgt: tuple[int, int],
-    ) -> int:
-        """Prepare the sparse linear system for the current blend."""
+    def reset(self, src, mask, tgt, mask_on_src, mask_on_tgt) -> int:
         assert self.root
-        # check validity
-        # assert 0 <= mask_on_src[0] and 0 <= mask_on_src[1]
-        # assert mask_on_src[0] + mask.shape[0] <= src.shape[0]
-        # assert mask_on_src[1] + mask.shape[1] <= src.shape[1]
-        # assert mask_on_tgt[0] + mask.shape[0] <= tgt.shape[0]
-        # assert mask_on_tgt[1] + mask.shape[1] <= tgt.shape[1]
-
         if len(mask.shape) == 3:
             mask = mask.mean(-1)
         mask = (mask >= 128).astype(np.int32)
-
-        # zero-out edge
-        mask[0] = 0
-        mask[-1] = 0
-        mask[:, 0] = 0
-        mask[:, -1] = 0
+        mask[0] = 0; mask[-1] = 0; mask[:, 0] = 0; mask[:, -1] = 0
 
         x, y = np.nonzero(mask)
         x0, x1 = x.min() - 1, x.max() + 2
@@ -228,21 +191,21 @@ class EquProcessor(BaseProcessor):
         tgt_x, tgt_y = index_x + mask_on_tgt[0], index_y + mask_on_tgt[1]
 
         src_C = src[src_x, src_y].astype(np.float32)
-        src_U = src[src_x - 1, src_y].astype(np.float32)
-        src_D = src[src_x + 1, src_y].astype(np.float32)
-        src_L = src[src_x, src_y - 1].astype(np.float32)
-        src_R = src[src_x, src_y + 1].astype(np.float32)
+        src_U = src[src_x-1, src_y].astype(np.float32)
+        src_D = src[src_x+1, src_y].astype(np.float32)
+        src_L = src[src_x, src_y-1].astype(np.float32)
+        src_R = src[src_x, src_y+1].astype(np.float32)
         tgt_C = tgt[tgt_x, tgt_y].astype(np.float32)
-        tgt_U = tgt[tgt_x - 1, tgt_y].astype(np.float32)
-        tgt_D = tgt[tgt_x + 1, tgt_y].astype(np.float32)
-        tgt_L = tgt[tgt_x, tgt_y - 1].astype(np.float32)
-        tgt_R = tgt[tgt_x, tgt_y + 1].astype(np.float32)
+        tgt_U = tgt[tgt_x-1, tgt_y].astype(np.float32)
+        tgt_D = tgt[tgt_x+1, tgt_y].astype(np.float32)
+        tgt_L = tgt[tgt_x, tgt_y-1].astype(np.float32)
+        tgt_R = tgt[tgt_x, tgt_y+1].astype(np.float32)
 
         grad = (
-            self.mixgrad(src_C - src_L, tgt_C - tgt_L)
-            + self.mixgrad(src_C - src_R, tgt_C - tgt_R)
-            + self.mixgrad(src_C - src_U, tgt_C - tgt_U)
-            + self.mixgrad(src_C - src_D, tgt_C - tgt_D)
+            self.mixgrad(src_C-src_L, tgt_C-tgt_L)
+            + self.mixgrad(src_C-src_R, tgt_C-tgt_R)
+            + self.mixgrad(src_C-src_U, tgt_C-tgt_U)
+            + self.mixgrad(src_C-src_D, tgt_C-tgt_D)
         )
 
         A = np.zeros((max_id, 4), np.int32)
@@ -250,29 +213,31 @@ class EquProcessor(BaseProcessor):
         B = np.zeros((max_id, 3), np.float32)
 
         X[1:] = tgt[index_x + mask_on_tgt[0], index_y + mask_on_tgt[1]]
-        # four-way
-        A[1:, 0] = ids[index_x - 1, index_y]
-        A[1:, 1] = ids[index_x + 1, index_y]
-        A[1:, 2] = ids[index_x, index_y - 1]
-        A[1:, 3] = ids[index_x, index_y + 1]
+        A[1:, 0] = ids[index_x-1, index_y]
+        A[1:, 1] = ids[index_x+1, index_y]
+        A[1:, 2] = ids[index_x, index_y-1]
+        A[1:, 3] = ids[index_x, index_y+1]
         B[1:] = grad
-        m = (mask[index_x - 1, index_y] == 0).astype(float).reshape(-1, 1)
-        B[1:] += m * tgt[index_x + mask_on_tgt[0] - 1, index_y + mask_on_tgt[1]]
-        m = (mask[index_x, index_y - 1] == 0).astype(float).reshape(-1, 1)
-        B[1:] += m * tgt[index_x + mask_on_tgt[0], index_y + mask_on_tgt[1] - 1]
-        m = (mask[index_x, index_y + 1] == 0).astype(float).reshape(-1, 1)
-        B[1:] += m * tgt[index_x + mask_on_tgt[0], index_y + mask_on_tgt[1] + 1]
-        m = (mask[index_x + 1, index_y] == 0).astype(float).reshape(-1, 1)
-        B[1:] += m * tgt[index_x + mask_on_tgt[0] + 1, index_y + mask_on_tgt[1]]
+        m = (mask[index_x-1, index_y]==0).astype(float).reshape(-1,1)
+        B[1:] += m * tgt[index_x+mask_on_tgt[0]-1, index_y+mask_on_tgt[1]]
+        m = (mask[index_x, index_y-1]==0).astype(float).reshape(-1,1)
+        B[1:] += m * tgt[index_x+mask_on_tgt[0], index_y+mask_on_tgt[1]-1]
+        m = (mask[index_x, index_y+1]==0).astype(float).reshape(-1,1)
+        B[1:] += m * tgt[index_x+mask_on_tgt[0], index_y+mask_on_tgt[1]+1]
+        m = (mask[index_x+1, index_y]==0).astype(float).reshape(-1,1)
+        B[1:] += m * tgt[index_x+mask_on_tgt[0]+1, index_y+mask_on_tgt[1]]
 
         self.tgt = tgt.copy()
-        self.tgt_index = (index_x + mask_on_tgt[0], index_y + mask_on_tgt[1])
+        self.tgt_index = (index_x+mask_on_tgt[0], index_y+mask_on_tgt[1])
         self.core.reset(max_id, A, X, B)
         return max_id
 
-    def step(self, iteration: int) -> tuple[np.ndarray, np.ndarray] | None:
-        """Run equation-solver iterations and materialize the blended image."""
-        result = self.core.step(iteration)
+    def step(self, iteration: int, eps: float = 0.0):
+        EPS_BACKENDS = {"openmp", "mpi", "hybrid"}
+        if self.backend in EPS_BACKENDS:
+            result = self.core.step(iteration, eps)
+        else:
+            result = self.core.step(iteration)
         if self.root:
             x, err = result
             self.tgt[self.tgt_index] = x[1:]
@@ -281,8 +246,6 @@ class EquProcessor(BaseProcessor):
 
 
 class GridProcessor(BaseProcessor):
-    """PIE grid processor."""
-
     def __init__(
         self,
         gradient: str = "max",
@@ -293,7 +256,6 @@ class GridProcessor(BaseProcessor):
         grid_x: int = 8,
         grid_y: int = 8,
     ):
-        """Create a grid-based processor for the selected backend."""
         core: Any | None = None
         rank = 0
 
@@ -311,85 +273,53 @@ class GridProcessor(BaseProcessor):
             rank = MPI.COMM_WORLD.Get_rank()
         elif backend == "cuda" and core_cuda is not None:
             core = core_cuda.GridSolver(grid_x, grid_y)
+        elif backend == "hybrid" and core_hybrid is not None:
+            assert MPI is not None
+            core = core_hybrid.GridSolver(grid_x, grid_y, n_cpu, min_interval)
+            rank = MPI.COMM_WORLD.Get_rank()
         elif backend.startswith("taichi") and taichi_solver is not None:
-            core = taichi_solver.GridSolver(
-                grid_x, grid_y, backend, n_cpu, block_size
-            )
+            core = taichi_solver.GridSolver(grid_x, grid_y, backend, n_cpu, block_size)
 
         super().__init__(gradient, rank, backend, core)
 
-    def reset(
-        self,
-        src: np.ndarray,
-        mask: np.ndarray,
-        tgt: np.ndarray,
-        mask_on_src: tuple[int, int],
-        mask_on_tgt: tuple[int, int],
-    ) -> int:
-        """Prepare the grid solver inputs for the current blend."""
+    def reset(self, src, mask, tgt, mask_on_src, mask_on_tgt) -> int:
         assert self.root
-        # check validity
-        # assert 0 <= mask_on_src[0] and 0 <= mask_on_src[1]
-        # assert mask_on_src[0] + mask.shape[0] <= src.shape[0]
-        # assert mask_on_src[1] + mask.shape[1] <= src.shape[1]
-        # assert mask_on_tgt[0] + mask.shape[0] <= tgt.shape[0]
-        # assert mask_on_tgt[1] + mask.shape[1] <= tgt.shape[1]
-
         if len(mask.shape) == 3:
             mask = mask.mean(-1)
         mask = (mask >= 128).astype(np.int32)
-
-        # zero-out edge
-        mask[0] = 0
-        mask[-1] = 0
-        mask[:, 0] = 0
-        mask[:, -1] = 0
+        mask[0] = 0; mask[-1] = 0; mask[:, 0] = 0; mask[:, -1] = 0
 
         x, y = np.nonzero(mask)
-        x0, x1 = x.min() - 1, x.max() + 2
-        y0, y1 = y.min() - 1, y.max() + 2
+        x0, x1 = x.min()-1, x.max()+2
+        y0, y1 = y.min()-1, y.max()+2
         mask = mask[x0:x1, y0:y1]
-        max_id = np.prod(mask.shape)
+        max_id = int(np.prod(mask.shape))
 
-        src_crop = src[
-            mask_on_src[0] + x0 : mask_on_src[0] + x1,
-            mask_on_src[1] + y0 : mask_on_src[1] + y1,
-        ].astype(np.float32)
-        tgt_crop = tgt[
-            mask_on_tgt[0] + x0 : mask_on_tgt[0] + x1,
-            mask_on_tgt[1] + y0 : mask_on_tgt[1] + y1,
-        ].astype(np.float32)
+        src_crop = src[mask_on_src[0]+x0:mask_on_src[0]+x1,
+                       mask_on_src[1]+y0:mask_on_src[1]+y1].astype(np.float32)
+        tgt_crop = tgt[mask_on_tgt[0]+x0:mask_on_tgt[0]+x1,
+                       mask_on_tgt[1]+y0:mask_on_tgt[1]+y1].astype(np.float32)
         grad = np.zeros([*mask.shape, 3], np.float32)
-        grad[1:] += self.mixgrad(
-            src_crop[1:] - src_crop[:-1], tgt_crop[1:] - tgt_crop[:-1]
-        )
-        grad[:-1] += self.mixgrad(
-            src_crop[:-1] - src_crop[1:], tgt_crop[:-1] - tgt_crop[1:]
-        )
-        grad[:, 1:] += self.mixgrad(
-            src_crop[:, 1:] - src_crop[:, :-1],
-            tgt_crop[:, 1:] - tgt_crop[:, :-1],
-        )
-        grad[:, :-1] += self.mixgrad(
-            src_crop[:, :-1] - src_crop[:, 1:],
-            tgt_crop[:, :-1] - tgt_crop[:, 1:],
-        )
-
+        grad[1:]   += self.mixgrad(src_crop[1:]-src_crop[:-1], tgt_crop[1:]-tgt_crop[:-1])
+        grad[:-1]  += self.mixgrad(src_crop[:-1]-src_crop[1:], tgt_crop[:-1]-tgt_crop[1:])
+        grad[:,1:]  += self.mixgrad(src_crop[:,1:]-src_crop[:,:-1], tgt_crop[:,1:]-tgt_crop[:,:-1])
+        grad[:,:-1] += self.mixgrad(src_crop[:,:-1]-src_crop[:,1:], tgt_crop[:,:-1]-tgt_crop[:,1:])
         grad[mask == 0] = 0
 
-        self.x0 = mask_on_tgt[0] + x0
-        self.x1 = mask_on_tgt[0] + x1
-        self.y0 = mask_on_tgt[1] + y0
-        self.y1 = mask_on_tgt[1] + y1
+        self.x0, self.x1 = mask_on_tgt[0]+x0, mask_on_tgt[0]+x1
+        self.y0, self.y1 = mask_on_tgt[1]+y0, mask_on_tgt[1]+y1
         self.tgt = tgt.copy()
         self.core.reset(max_id, mask, tgt_crop, grad)
-        return int(max_id)
+        return max_id
 
-    def step(self, iteration: int) -> tuple[np.ndarray, np.ndarray] | None:
-        """Run grid-solver iterations and materialize the blended image."""
-        result = self.core.step(iteration)
+    def step(self, iteration: int, eps: float = 0.0):
+        EPS_BACKENDS = {"openmp", "mpi", "hybrid"}
+        if self.backend in EPS_BACKENDS:
+            result = self.core.step(iteration, eps)
+        else:
+            result = self.core.step(iteration)
         if self.root:
             tgt, err = result
-            self.tgt[self.x0 : self.x1, self.y0 : self.y1] = tgt
+            self.tgt[self.x0:self.x1, self.y0:self.y1] = tgt
             return self.tgt, err
         return None

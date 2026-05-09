@@ -1,0 +1,228 @@
+# =============================================================================
+# Fast Poisson Image Editing — Build then Run All Backends
+# Usage: make -f Makefile.runs [target]
+# Run from repo root.
+# =============================================================================
+
+# --- Inputs ------------------------------------------------------------------
+SRC    := tests/test3_src.jpg
+MASK   := tests/test3_mask.jpg
+TGT    := tests/test3_tgt.jpg
+H1     := 100
+W1     := 100
+N      := 5000
+EPS    := 0.01
+
+# --- Parallelism config -------------------------------------------------------
+OMP_THREADS  := 4    # threads for OpenMP and hybrid
+MPI_RANKS    := 4    # ranks for MPI
+HYBRID_RANKS := 2    # MPI ranks for hybrid  \  ranks x cpus
+HYBRID_CPUS  := 2    # OMP threads per rank  /  should <= total cores
+
+# --- Output directory ---------------------------------------------------------
+OUTDIR := results
+
+# =============================================================================
+# PHONY
+# =============================================================================
+.PHONY: all run-all build check \
+        numpy numba gcc \
+        openmp openmp-eps \
+        mpi mpi-eps \
+        hybrid hybrid-eps \
+        grid-gcc grid-openmp grid-mpi grid-hybrid \
+        clean
+
+# =============================================================================
+# DEFAULT: build then run every backend
+# =============================================================================
+all: build check run-all
+	@echo ""
+	@echo "============================================="
+	@echo " All backends complete. Results in $(OUTDIR)/"
+	@echo "============================================="
+
+run-all: numpy numba gcc \
+         openmp openmp-eps \
+         mpi mpi-eps \
+         hybrid hybrid-eps
+
+# =============================================================================
+# BUILD (runs automatically before any backend target via dependency)
+# =============================================================================
+$(OUTDIR)/.built:
+	@echo ""
+	@echo ">>> Building C++ extensions..."
+	pip install -e . --no-build-isolation
+	@mkdir -p $(OUTDIR)
+	@touch $(OUTDIR)/.built
+	@echo ">>> Build complete."
+
+build: $(OUTDIR)/.built
+
+check: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> Available backends:"
+	@fpie --check-backend
+
+# =============================================================================
+# 1. NumPy
+# =============================================================================
+numpy: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [1/8] NumPy (pure Python baseline)..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_numpy.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b numpy
+	@echo "    -> $(OUTDIR)/out_numpy.jpg"
+
+# =============================================================================
+# 2. Numba
+# =============================================================================
+numba: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [2/8] Numba..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_numba.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b numba
+	@echo "    -> $(OUTDIR)/out_numba.jpg"
+
+# =============================================================================
+# 3. GCC (single-threaded C++ baseline)
+# =============================================================================
+gcc: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [3/8] GCC (single-threaded C++ baseline)..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_gcc.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b gcc
+	@echo "    -> $(OUTDIR)/out_gcc.jpg"
+
+# =============================================================================
+# 4. OpenMP — original (fixed iterations)
+# =============================================================================
+openmp: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [4/8] OpenMP — fixed iterations ($(OMP_THREADS) threads)..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_openmp.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b openmp -c $(OMP_THREADS)
+	@echo "    -> $(OUTDIR)/out_openmp.jpg"
+
+# --- OpenMP + adaptive convergence (YOUR ADDITION) ---------------------------
+openmp-eps: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [4b] OpenMP — adaptive convergence (eps=$(EPS), $(OMP_THREADS) threads)..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_openmp_eps.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b openmp -c $(OMP_THREADS) -e $(EPS)
+	@echo "    -> $(OUTDIR)/out_openmp_eps.jpg"
+
+# =============================================================================
+# 5. MPI — original (fixed iterations)
+# =============================================================================
+mpi: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [5/8] MPI — fixed iterations ($(MPI_RANKS) ranks)..."
+	mpirun -n $(MPI_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_mpi.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b mpi
+	@echo "    -> $(OUTDIR)/out_mpi.jpg"
+
+# --- MPI + adaptive convergence + mask-aware LB (YOUR ADDITIONS) -------------
+mpi-eps: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [5b] MPI — adaptive convergence + mask-aware LB (eps=$(EPS), $(MPI_RANKS) ranks)..."
+	mpirun -n $(MPI_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_mpi_eps.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b mpi -e $(EPS)
+	@echo "    -> $(OUTDIR)/out_mpi_eps.jpg"
+
+# =============================================================================
+# 6. Hybrid MPI + OpenMP — fixed iterations (YOUR NEW BACKEND)
+# =============================================================================
+hybrid: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [6/8] Hybrid MPI+OpenMP — fixed iterations ($(HYBRID_RANKS) ranks x $(HYBRID_CPUS) threads)..."
+	mpirun -n $(HYBRID_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_hybrid.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b hybrid -c $(HYBRID_CPUS)
+	@echo "    -> $(OUTDIR)/out_hybrid.jpg"
+
+# --- Hybrid + adaptive convergence (YOUR ADDITIONS) --------------------------
+hybrid-eps: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> [6b] Hybrid MPI+OpenMP — adaptive convergence (eps=$(EPS), $(HYBRID_RANKS) ranks x $(HYBRID_CPUS) threads)..."
+	mpirun -n $(HYBRID_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_hybrid_eps.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b hybrid -c $(HYBRID_CPUS) -e $(EPS)
+	@echo "    -> $(OUTDIR)/out_hybrid_eps.jpg"
+
+# =============================================================================
+# GRID SOLVER VARIANTS (optional, call individually)
+# make -f Makefile.runs grid-openmp
+# =============================================================================
+grid-gcc: $(OUTDIR)/.built
+	@echo ">>> GCC GridSolver..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_gcc_grid.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b gcc --method grid
+
+grid-openmp: $(OUTDIR)/.built
+	@echo ">>> OpenMP GridSolver ($(OMP_THREADS) threads)..."
+	fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_openmp_grid.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b openmp -c $(OMP_THREADS) --method grid
+
+grid-mpi: $(OUTDIR)/.built
+	@echo ">>> MPI GridSolver ($(MPI_RANKS) ranks)..."
+	mpirun -n $(MPI_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_mpi_grid.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b mpi --method grid
+
+grid-hybrid: $(OUTDIR)/.built
+	@echo ">>> Hybrid GridSolver ($(HYBRID_RANKS) ranks x $(HYBRID_CPUS) threads)..."
+	mpirun -n $(HYBRID_RANKS) fpie -s $(SRC) -m $(MASK) -t $(TGT) \
+	     -o $(OUTDIR)/out_hybrid_grid.jpg \
+	     -h1 $(H1) -w1 $(W1) -n $(N) -b hybrid -c $(HYBRID_CPUS) --method grid
+
+# =============================================================================
+# CLEAN
+# =============================================================================
+clean:
+	@echo ">>> Removing results and build stamp..."
+	rm -rf $(OUTDIR)
+	@echo ">>> Done."
+
+# =============================================================================
+# BENCHMARK — time every backend, compute speedup/efficiency/PSNR/SSIM
+# =============================================================================
+BENCH_SIZES := 512 1024 2048
+BENCH_RUNS  := 1
+
+benchmark: $(OUTDIR)/.built
+	@echo ""
+	@echo ">>> Running benchmark across all backends and sizes $(BENCH_SIZES)..."
+	python benchmark.py \
+	    --sizes $(BENCH_SIZES) \
+	    --iters $(N) \
+	    --eps   $(EPS) \
+	    --cpus  $(OMP_THREADS) \
+	    --runs  $(BENCH_RUNS)
+	@echo ">>> Benchmark complete. Results in benchmark_results/"
+
+# =============================================================================
+# PLOT — generate graphs from benchmark output
+# =============================================================================
+plot: benchmark_results/benchmark_results.json
+	@echo ""
+	@echo ">>> Generating plots..."
+	pip install matplotlib --quiet
+	python plot_results.py
+	@echo ">>> Plots saved in benchmark_results/"
+
+benchmark_results/benchmark_results.json:
+	@echo "ERROR: Run 'make -f Makefile.runs benchmark' first."
+	@exit 1
+
+.PHONY: benchmark plot

@@ -35,6 +35,7 @@ endif()
 find_package(MPI)
 if(MPI_FOUND)
   add_subdirectory(fpie/core/mpi)
+  add_subdirectory(fpie/core/hybrid)
 endif()
 
 find_package(CUDA)
