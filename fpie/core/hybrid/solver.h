@@ -29,6 +29,7 @@ class HybridEquSolver : public EquSolver {
   void sync();
 
   inline void update_equation(int i);
+  void allgather_X();
   void calc_error();
   bool has_converged(float eps);
 

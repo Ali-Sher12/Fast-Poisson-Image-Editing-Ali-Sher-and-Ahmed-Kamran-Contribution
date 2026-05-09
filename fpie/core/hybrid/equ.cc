@@ -101,6 +101,34 @@ bool HybridEquSolver::has_converged(float eps) {
   return (err[0]+err[1]+err[2]) / (3.0f*(N-1)) < eps;
 }
 
+// ---------------------------------------------------------------------------
+// Helper: MPI_Allgatherv to assemble the full updated X on every rank.
+//
+// We use MPI_Allgatherv so that every rank has a consistent, fully-updated
+// view of X after each Jacobi sweep — identical to what the single-process
+// backends do on every iteration.  The old manual Recv/Send + Bcast had a
+// subtle count mismatch for rank 0 (its k_start is 1, not offset[0]=0, so
+// it was sending one element fewer than the receiver expected) and, more
+// importantly, the batched inner loop let ranks diverge for min_interval
+// steps while reading stale neighbour values from other ranks' slices.
+// ---------------------------------------------------------------------------
+void HybridEquSolver::allgather_X() {
+  // Build per-rank send counts and displacements (in float elements, ×3).
+  // Every rank sends its full slice [offset[r], offset[r+1]).
+  // Rank 0 owns index 0 (the boundary constant) as well — that's fine,
+  // it never changes so broadcasting it each time is harmless.
+  std::vector<int> counts(n_proc), displs(n_proc);
+  for (int r = 0; r < n_proc; ++r) {
+    counts[r] = (offset[r+1] - offset[r]) * 3;
+    displs[r] =  offset[r] * 3;
+  }
+  // Each rank contributes its own updated slice; after the call every rank
+  // has the complete, up-to-date X.
+  MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL,
+                 X, counts.data(), displs.data(),
+                 MPI_FLOAT, MPI_COMM_WORLD);
+}
+
 std::tuple<py::array_t<unsigned char>, py::array_t<float>>
 HybridEquSolver::step(int iteration, float eps) {
   int converged = 0;
@@ -109,38 +137,39 @@ HybridEquSolver::step(int iteration, float eps) {
   int k_start = std::max(offset[proc_id],   1);
   int k_end   =         offset[proc_id+1];
 
-  for (int i = 0; i < iteration && !converged; i += min_interval) {
-    for (int s = 0; s < min_interval; ++s) {
-      // Step 1: each thread writes updated value to tmp[k] reading from X.
-      //         No race: reads from X (shared-read), writes to disjoint tmp[k].
-#pragma omp parallel for schedule(static)
-      for (int k = k_start; k < k_end; ++k)
-        update_equation(k);
+  // FIX: perform exactly one full Jacobi sweep (across all ranks) before
+  // syncing.  The original code batched min_interval sweeps locally before
+  // communicating; during those extra sweeps every rank read its neighbours'
+  // values from a stale X (other ranks hadn't broadcast their updates yet),
+  // causing the 200× error blow-up.  We still honour min_interval as the
+  // communication stride for the convergence check, but we sync X after
+  // every single sweep so that neighbour reads are always fresh.
+  for (int i = 0; i < iteration && !converged; ++i) {
 
-      // Step 2: copy this rank's updated slice from tmp back into X.
+    // Step 1: Jacobi update — reads from X (old), writes to tmp (new).
+    //         OpenMP parallelises the work within this rank's slice.
+    //         No race: all threads read X concurrently, write disjoint tmp[k].
 #pragma omp parallel for schedule(static)
-      for (int k = k_start; k < k_end; ++k) {
-        X[k*3+0] = tmp[k*3+0];
-        X[k*3+1] = tmp[k*3+1];
-        X[k*3+2] = tmp[k*3+2];
-      }
+    for (int k = k_start; k < k_end; ++k)
+      update_equation(k);
+
+    // Step 2: commit this rank's new values back into X.
+#pragma omp parallel for schedule(static)
+    for (int k = k_start; k < k_end; ++k) {
+      X[k*3+0] = tmp[k*3+0];
+      X[k*3+1] = tmp[k*3+1];
+      X[k*3+2] = tmp[k*3+2];
     }
 
-    // Step 3: gather all ranks' slices into rank 0, then broadcast full X.
-    if (proc_id == 0) {
-      for (int j = 1; j < n_proc; ++j)
-        MPI_Recv(&X[offset[j]*3], (offset[j+1]-offset[j])*3,
-                 MPI_FLOAT, j, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    } else {
-      MPI_Send(&X[k_start*3], (k_end - k_start)*3,
-               MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
-    }
-    MPI_Bcast(X, N * 3, MPI_FLOAT, 0, MPI_COMM_WORLD);
-    // Keep tmp in sync so next iteration reads correct old values.
+    // Step 3: exchange updated slices so every rank has a fully consistent X
+    //         before the next sweep reads neighbours.
+    allgather_X();
+
+    // Keep tmp in sync with the now-complete X.
     memcpy(tmp, X, sizeof(float) * N * 3);
 
-    // Adaptive convergence.
-    if (eps > 0.0f) {
+    // Step 4: check convergence every min_interval sweeps.
+    if (eps > 0.0f && (i + 1) % min_interval == 0) {
       if (proc_id == 0) converged = has_converged(eps) ? 1 : 0;
       MPI_Bcast(&converged, 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
