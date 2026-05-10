@@ -1,8 +1,0 @@
-[ 16%] Building CXX object fpie/core/openmp/CMakeFiles/core_openmp.dir/grid.cc.o
-[ 41%] Built target core_gcc
-[ 50%] Building CXX object fpie/core/mpi/CMakeFiles/core_mpi.dir/equ.cc.o
-[ 58%] Building CXX object fpie/core/mpi/CMakeFiles/core_mpi.dir/grid.cc.o
-[ 66%] Linking CXX shared module /tmp/tmp10vteeho.build-lib/fpie/core_openmp.cpython-312-x86_64-linux-gnu.so
-[ 75%] Linking CXX shared module /tmp/tmp10vteeho.build-lib/fpie/core_mpi.cpython-312-x86_64-linux-gnu.so
-[ 83%] Built target core_mpi
-[100%] Built target core_openmp

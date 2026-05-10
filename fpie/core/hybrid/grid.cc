@@ -21,11 +21,6 @@ HybridGridSolver::~HybridGridSolver() {
   delete[] offset;
 }
 
-// ---------------------------------------------------------------------------
-// MASK-AWARE LOAD BALANCING
-// Count mask pixels per row, assign consecutive rows to ranks greedily so
-// each rank gets ~equal mask pixels.  Row order preserved for halo exchange.
-// ---------------------------------------------------------------------------
 void HybridGridSolver::post_reset() {
   if (imgbuf != NULL) delete[] imgbuf;
   imgbuf = new unsigned char[N * m3];
@@ -38,7 +33,6 @@ void HybridGridSolver::post_reset() {
 
   offset[0] = 0;
   if (n_mask_pixels == 0) {
-    // Degenerate: equal row split.
     int extra = N % n_proc;
     for (int i = 0; i < n_proc; ++i)
       offset[i+1] = offset[i] + N/n_proc + (i < extra);
@@ -106,7 +100,6 @@ std::tuple<py::array_t<unsigned char>, py::array_t<float>>
 HybridGridSolver::step(int iteration, float eps) {
   int converged = 0;
 
-  // Pre-compute global mask count for normalisation.
   int local_mask = 0;
   for (int id = offset[proc_id]*M; id < offset[proc_id+1]*M; ++id)
     if (mask[id]) ++local_mask;
@@ -114,18 +107,16 @@ HybridGridSolver::step(int iteration, float eps) {
   MPI_Allreduce(&local_mask, &global_mask, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
   for (int i = 0; i < iteration && !converged; i += min_interval) {
-    // ---- Two-level Jacobi: MPI rank owns rows [offset[proc_id], offset[proc_id+1])
-    //      OpenMP threads share pixels within those rows. ----
+    // Two-level Jacobi: MPI owns rows, OpenMP owns pixels within rows
     for (int s = 0; s < min_interval; ++s) {
       int row_start = offset[proc_id]   * M;
       int row_end   = offset[proc_id+1] * M;
-
 #pragma omp parallel for schedule(static)
       for (int k = row_start; k < row_end; ++k)
         if (mask[k]) update_equation(k);
     }
 
-    // ---- Halo exchange with neighbours ----
+    // Halo exchange
     if (proc_id != n_proc-1)
       MPI_Send(&tgt[(offset[proc_id+1]-1)*m3], m3, MPI_FLOAT, proc_id+1, 2, MPI_COMM_WORLD);
     if (proc_id != 0)
@@ -135,19 +126,21 @@ HybridGridSolver::step(int iteration, float eps) {
     if (proc_id != n_proc-1)
       MPI_Recv(&tgt[offset[proc_id+1]*m3], m3, MPI_FLOAT, proc_id+1, 3, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    // ---- Adaptive convergence: parallel local reduction, MPI global reduce ----
+    // Adaptive convergence — use separate scalars to avoid array reduction issue
     if (eps > 0.0f) {
-      float local_err[3] = {0.f, 0.f, 0.f};
-
-#pragma omp parallel for schedule(static) reduction(+:local_err[0],local_err[1],local_err[2])
-      for (int id = offset[proc_id]*M; id < offset[proc_id+1]*M; ++id) {
+      float le0 = 0.0f, le1 = 0.0f, le2 = 0.0f;
+      int row_start = offset[proc_id]   * M;
+      int row_end   = offset[proc_id+1] * M;
+#pragma omp parallel for schedule(static) reduction(+:le0,le1,le2)
+      for (int id = row_start; id < row_end; ++id) {
         if (mask[id]) {
           int off3=id*3, id0=off3-m3, id1=off3-3, id2=off3+3, id3=off3+m3;
-          local_err[0]+=std::abs(grad[off3+0]+tgt[id0+0]+tgt[id1+0]+tgt[id2+0]+tgt[id3+0]-tgt[off3+0]*4.0);
-          local_err[1]+=std::abs(grad[off3+1]+tgt[id0+1]+tgt[id1+1]+tgt[id2+1]+tgt[id3+1]-tgt[off3+1]*4.0);
-          local_err[2]+=std::abs(grad[off3+2]+tgt[id0+2]+tgt[id1+2]+tgt[id2+2]+tgt[id3+2]-tgt[off3+2]*4.0);
+          le0 += std::abs(grad[off3+0]+tgt[id0+0]+tgt[id1+0]+tgt[id2+0]+tgt[id3+0]-tgt[off3+0]*4.0);
+          le1 += std::abs(grad[off3+1]+tgt[id0+1]+tgt[id1+1]+tgt[id2+1]+tgt[id3+1]-tgt[off3+1]*4.0);
+          le2 += std::abs(grad[off3+2]+tgt[id0+2]+tgt[id1+2]+tgt[id2+2]+tgt[id3+2]-tgt[off3+2]*4.0);
         }
       }
+      float local_err[3]  = {le0, le1, le2};
       float global_err[3] = {0.f, 0.f, 0.f};
       MPI_Reduce(local_err, global_err, 3, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
 
