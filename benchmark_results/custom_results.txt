@@ -1,0 +1,117 @@
+(PyEnv) jarvis@jarvis-HP-ProBook-450-G6:~/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution$ make -f Makefile.runs benchmark
+
+>>> Running benchmark across all backends and sizes 512 1024 2048...
+python benchmark.py \
+    --sizes 512 1024 2048 \
+    --iters 5000 \
+    --eps   0.01 \
+    --cpus  4     \
+    --runs  1
+
+============================================================
+  Image size: 512x512
+============================================================
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numpy_512.jpg -h1 0 -w1 0 -n 5000 -b numpy
+  [OK]     numpy: 36.291s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numba_512.jpg -h1 0 -w1 0 -n 5000 -b numba
+  [OK]     numba: 30.297s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_gcc_512.jpg -h1 0 -w1 0 -n 5000 -b gcc
+  [OK]     gcc: 4.411s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp_512.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4
+  [OK]     openmp: 2.433s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp-eps_512.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4 -e 0.01
+  [OK]     openmp-eps: 2.407s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi_512.jpg -h1 0 -w1 0 -n 5000 -b mpi
+  [OK]     mpi: 3.344s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi-eps_512.jpg -h1 0 -w1 0 -n 5000 -b mpi -e 0.01
+  [OK]     mpi-eps: 3.188s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid_512.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4
+  [OK]     hybrid: 5.273s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_512.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_512.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_512.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid-eps_512.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4 -e 0.01
+  [OK]     hybrid-eps: 5.734s
+
+============================================================
+  Image size: 1024x1024
+============================================================
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numpy_1024.jpg -h1 0 -w1 0 -n 5000 -b numpy
+  [OK]     numpy: 143.709s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numba_1024.jpg -h1 0 -w1 0 -n 5000 -b numba
+  [OK]     numba: 88.582s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_gcc_1024.jpg -h1 0 -w1 0 -n 5000 -b gcc
+  [OK]     gcc: 11.632s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp_1024.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4
+  [OK]     openmp: 6.474s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp-eps_1024.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4 -e 0.01
+  [OK]     openmp-eps: 6.833s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi_1024.jpg -h1 0 -w1 0 -n 5000 -b mpi
+  [OK]     mpi: 7.258s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi-eps_1024.jpg -h1 0 -w1 0 -n 5000 -b mpi -e 0.01
+  [OK]     mpi-eps: 7.235s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid_1024.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4
+  [OK]     hybrid: 14.261s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_1024.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_1024.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_1024.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid-eps_1024.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4 -e 0.01
+  [OK]     hybrid-eps: 14.923s
+
+============================================================
+  Image size: 2048x2048
+============================================================
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numpy_2048.jpg -h1 0 -w1 0 -n 5000 -b numpy
+  [OK]     numpy: 543.528s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_numba_2048.jpg -h1 0 -w1 0 -n 5000 -b numba
+  [OK]     numba: 319.689s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_gcc_2048.jpg -h1 0 -w1 0 -n 5000 -b gcc
+  [OK]     gcc: 39.721s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp_2048.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4
+  [OK]     openmp: 30.028s
+  Running: fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_openmp-eps_2048.jpg -h1 0 -w1 0 -n 5000 -b openmp -c 4 -e 0.01
+  [OK]     openmp-eps: 30.081s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi_2048.jpg -h1 0 -w1 0 -n 5000 -b mpi
+  [OK]     mpi: 28.848s
+  Running: mpirun -n 4 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_mpi-eps_2048.jpg -h1 0 -w1 0 -n 5000 -b mpi -e 0.01
+  [OK]     mpi-eps: 30.386s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid_2048.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4
+  [OK]     hybrid: 61.680s
+  Running: mpirun -n 2 fpie -s /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/src_2048.jpg -m /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/mask_2048.jpg -t /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/tgt_2048.jpg -o /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/out_hybrid-eps_2048.jpg -h1 0 -w1 0 -n 5000 -b hybrid -c 4 -e 0.01
+  [OK]     hybrid-eps: 57.339s
+
+CSV saved: /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/benchmark_results.csv
+JSON saved: /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/benchmark_results.json
+
+================================================================================
+                               BENCHMARK SUMMARY                                
+================================================================================
+Backend            Size   Time(s)   Speedup   Effic.   PSNR(dB)     SSIM
+--------------------------------------------------------------------------------
+numpy               512   36.2914                                       
+numba               512   30.2971                                       
+gcc                 512    4.4115     1.000    1.000        inf   1.0000
+openmp              512    2.4332     1.813    0.453      55.54   1.0000
+openmp-eps          512    2.4068     1.833    0.458      55.54   1.0000
+mpi                 512    3.3445     1.319    0.330      30.00   0.9916
+mpi-eps             512    3.1880     1.384    0.346      30.00   0.9916
+hybrid              512    5.2733     0.837    0.105      55.54   1.0000
+hybrid-eps          512    5.7339     0.769    0.096      55.54   1.0000
+numpy              1024  143.7087                                       
+numba              1024   88.5825                                       
+gcc                1024   11.6322     1.000    1.000        inf   1.0000
+openmp             1024    6.4737     1.797    0.449      56.53   1.0000
+openmp-eps         1024    6.8327     1.702    0.426      56.53   1.0000
+mpi                1024    7.2578     1.603    0.401      34.44   0.9960
+mpi-eps            1024    7.2347     1.608    0.402      34.44   0.9960
+hybrid             1024   14.2609     0.816    0.102      56.53   1.0000
+hybrid-eps         1024   14.9232     0.779    0.097      56.53   1.0000
+numpy              2048  543.5285                                       
+numba              2048  319.6890                                       
+gcc                2048   39.7213     1.000    1.000        inf   1.0000
+openmp             2048   30.0283     1.323    0.331      57.14   1.0000
+openmp-eps         2048   30.0805     1.320    0.330      57.14   1.0000
+mpi                2048   28.8477     1.377    0.344      35.75   0.9968
+mpi-eps            2048   30.3857     1.307    0.327      35.75   0.9968
+hybrid             2048   61.6802     0.644    0.080      57.14   1.0000
+hybrid-eps         2048   57.3387     0.693    0.087      57.14   1.0000
+================================================================================
+
+All output images saved in: /home/jarvis/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution/benchmark_results/
+>>> Benchmark complete. Results in benchmark_results/
+(PyEnv) jarvis@jarvis-HP-ProBook-450-G6:~/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribut(PyEnv) jarvis@jarvis-HP-ProBook-450-G6:~/Documents/Repos/Fast-Poisson-Image-Editing-Ali-Sher-and-Ahmed-Kamran-Contribution$ 
+
