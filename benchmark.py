@@ -29,7 +29,7 @@ REPO_ROOT   = Path(__file__).parent.resolve()
 TEST_SRC    = REPO_ROOT / "tests/test3_src.jpg"
 TEST_MASK   = REPO_ROOT / "tests/test3_mask.jpg"
 TEST_TGT    = REPO_ROOT / "tests/test3_tgt.jpg"
-H1, W1      = 100, 100
+H1, W1      = 0, 0
 RESULTS_DIR = REPO_ROOT / "results"
 BENCH_DIR   = REPO_ROOT / "benchmark_results"
 

@@ -7,18 +7,20 @@
 // ---------------------------------------------------------------------------
 // HybridEquSolver
 // MPI distributes equations across ranks (coarse-grained).
-// OpenMP threads parallelize the Jacobi update within each rank (fine-grained).
+// OpenMP threads parallelise the Gauss-Seidel update within each rank (fine).
+// Red/black ordering: black nodes [1,n_mid), red nodes [n_mid,N).
+// Two MPI syncs per sweep (one per colour) give gcc-equivalent convergence.
 // Adaptive convergence: stops early when mean residual < eps.
 // ---------------------------------------------------------------------------
 class HybridEquSolver : public EquSolver {
   int* maskbuf;
   unsigned char* imgbuf;
   float* tmp;
-  int n_mid;          // red/black split boundary (same as OpenMP)
+  int n_mid;          // red/black split boundary
   int proc_id;        // MPI rank
   int n_proc;         // total MPI ranks
   int* offset;        // offset[i]..offset[i+1] = equation range for rank i
-  int min_interval;   // MPI sync every min_interval iterations
+  int min_interval;   // convergence check every min_interval iterations
 
  public:
   explicit HybridEquSolver(int n_cpu, int min_interval);
@@ -29,7 +31,7 @@ class HybridEquSolver : public EquSolver {
   void sync();
 
   inline void update_equation(int i);
-  void allgather_X();
+  void allgather_range(int lo, int hi);
   void calc_error();
   bool has_converged(float eps);
 
@@ -40,7 +42,7 @@ class HybridEquSolver : public EquSolver {
 // ---------------------------------------------------------------------------
 // HybridGridSolver
 // MPI distributes image rows across ranks with MASK-AWARE load balancing.
-// OpenMP threads parallelize pixel updates within each rank's rows.
+// OpenMP threads parallelise pixel updates within each rank's rows.
 // Adaptive convergence: stops early when mean residual < eps.
 // ---------------------------------------------------------------------------
 class HybridGridSolver : public GridSolver {
